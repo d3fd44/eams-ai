@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-RECORDS_COUNT = 1000
+RECORDS_COUNT = 1
 OUTPUT_FILE = "data.csv"
 
 def generate_data(n_samples):
@@ -72,6 +72,7 @@ def generate_data(n_samples):
                 val = np.clip(val, 0.0, 1.0)
             
             processed_row.append(val)
+            print(type(val))
             
         data.append(processed_row)
         labels.append(status)
@@ -93,5 +94,6 @@ df = generate_data(RECORDS_COUNT)
 df = df.sample(frac=1).reset_index(drop=True)
 df.to_csv(OUTPUT_FILE, index=False)
 
+df.info()
 print(f"Generated {len(df)} rows with {len(df.columns)} columns.")
 print(df.head())
