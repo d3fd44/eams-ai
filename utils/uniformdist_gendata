@@ -1,0 +1,55 @@
+#! /bin/bash
+
+putrecords()
+{
+    awk -v limit="$RECORDS_COUNT" '
+    BEGIN {
+        print "focus_switch_rate,main_keystrokes,main_mouse_events,main_idle_percent,helper_keystrokes,helper_mouse_events,helper_idle_percent,entertain_keystrokes,entertain_mouse_events,entertain_idle_percent,distract_keystrokes,distract_mouse_events,distract_idle_percent"
+
+        srand()
+        
+        for (i=1; i<=limit; i++) {
+
+            focus_switch = int(rand() * 20)
+
+            print focus_switch "," rand() "," rand() "," rand() "," rand() "," rand() "," rand() "," rand() "," rand() "," rand() "," rand() "," rand() "," rand()
+        }
+    }' > "$CSV_FILE_NAME"
+}
+
+if [[ $# -lt 2 ]]; then
+    printf '%s\n'                       \
+    "invalid usage - missing arguments" \
+    "usage: ./generate_data <COUNT> <FILENAME>"
+    exit 1
+else
+    if ! [[ $1 =~ ^[0-9]+$ ]]; then
+        printf '%s\n'                               \
+        "invalid usage - dat argument"              \
+        "usage: ./generate_data <COUNT> <FILENAME>" \
+        "<COUNT> should be a positive integer"
+    else
+        RECORDS_COUNT=$1
+        if [[ -f $2 ]]; then
+            printf '%s\n'                 \
+            "file \"$2\" already exists!" \
+            "do you want to overwrite it? (y/n)"
+
+            read -r WRITE_OPT
+
+            case "$WRITE_OPT" in
+                'y')
+                    CSV_FILE_NAME=$2
+                    putrecords
+                ;;
+                'n') exit 0
+                ;;
+                *) echo "Bad option."
+                ;;
+            esac
+        else
+            CSV_FILE_NAME=$2
+            putrecords
+        fi
+    fi
+fi

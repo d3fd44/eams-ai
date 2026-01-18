@@ -1,0 +1,5 @@
+**ignorethis**
+.venv
+*.pdf
+mu/*
+*ipynb_checkpoints*
