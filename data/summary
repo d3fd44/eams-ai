@@ -1,0 +1,13 @@
+final-data/data.csv (583747 rows)
+
+means:
+
+           | focus_switch_rate  idle_time_percent  main_keystrokes  ...  helper_mouse_events  entertain_keystrokes  entertain_mouse_events
+status     |                                                        ...
+active     |          9.507204           0.400378         0.301725  ...             0.698384              0.100978                0.100868
+distracted |          9.576712           0.301300         0.101141  ...             0.100628              0.699199                0.699769
+fragmented |         15.499558           0.299910         0.300798  ...             0.300750              0.301642                0.301023
+idle       |          3.548494           0.899121         0.100556  ...             0.100896              0.100983                0.100808
+productive |          5.548006           0.200807         0.698507  ...             0.201175              0.100742                0.101078
+
+
