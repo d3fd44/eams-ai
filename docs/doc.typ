@@ -101,76 +101,66 @@ The foundation of any machine learning system is high-quality data. For this pro
 
 #h3("Availability of Public Datasets")
 
-Our initial objective was to acquire real-world datasets from open-source repositories (e.g., Kaggle, GitHub). However, due to the highly specific nature of our application—which requires granular telemetry on focus switching, specific keystroke categories, and application types—and the inherent privacy concerns surrounding employee monitoring logs, no suitable public datasets existed. Consequently, we opted to generate a synthetic dataset to train the model.
+Our initial objective was to acquire real-world datasets from open-source repositories (e.g., Kaggle, GitHub). However, due to the highly specific nature of our application—which requires detailed tracking of context switching, keystroke categories, and specific app usage—and the privacy issues surrounding employee monitoring logs, no suitable public datasets existed. Consequently, we opted to generate a synthetic dataset to train the model.
 
 #h3("Generating Completely Random Unlabeled Samples")
 
 Our preliminary generation attempt utilized a Bash script leveraging `awk` and its standard `rand()` function. This approach generated data based on a *Uniform Distribution*.
 
-While computationally efficient, this method proved unsuitable for training classifiers. Human behavior is not uniformly random; it follows distinct patterns (e.g., a productive user consistently has high input rates). The uniform distribution produced "white noise" data with no discernable clusters, resulting in poor performance during unsupervised clustering attempts (e.g., K-Means yielding high inertia scores).
+While fast and easy to write, this method was not suitable for training classifiers. Human behavior is not uniformly random; it follows distinct patterns (e.g., a productive user usually has high input rates, not random ones). The uniform distribution produced "white noise" data with no distinct clusters, resulting in poor performance during our initial clustering tests.
 
-#h3("Gaussian Behavioral Simulation")
+#h3("Level-Based Logic & Gaussian Simulation")
 
-To resolve the lack of clear patterns, we tried to model user behavior using *Normal (Gaussian) Distributions* rather than uniform randomness.
+To resolve the lack of clear patterns, we switched to a *Level-Based Generation Strategy* backed by *Normal (Gaussian) Distributions*.
 
-By mapping the status definitions (Productive, Fragmented, etc.) to statistical parameters, we created distinct "Data Personas":
+Instead of manually guessing means and standard deviations for every single number, we defined a higher-level logic layer using semantic levels: `{ LOW, MEDIUM_LOW, MEDIUM, MEDIUM_HIGH, HIGH }`. A parser then automatically translates these descriptions into statistical parameters.
 
-- *Statistical Bias:* Each status is assigned specific means and standard deviations for every feature.
-  - _Example:_ Records labeled "Productive" are generated with a high mean for `main_keystrokes` and a low standard deviation (indicating consistency), whereas "Fragmented" records are generated with a significantly higher mean for `focus_switch_rate`.
-- *Noise Injection:* We introduced controlled variance to non-defining features to prevent the model from overfitting to perfect data, ensuring it remains robust against real-world irregularities.
+- *Logical Ranges:* We defined specific ranges (e.g., `HIGH` maps to $[0.8, 1.0]$). The system takes the center of that range as the *Mean* ($mu$) and calculates a *Standard Deviation* ($sigma$) that fits the range. This ensures that 95% of the generated numbers fall inside the correct area.
 
-This process yielded a labeled, clustered dataset that statistically mirrors real-world usage patterns, providing a reliable foundation for a supervised learning task.
+- *Data Centralization:* This logic naturally anchors profiles to realistic baselines. For example, the `Idle` profile is defined with `LOW` inputs. Consequently, the Gaussian generator produces numbers very close to 0.0, effectively creating a "zero-state" baseline that the model can easily distinguish from active states.
+
+- *Epsilon ($epsilon$) Shift:* To prevent the Machine Learning model from simply memorizing exact values (Overfitting), we injected a small random "jitter" (Epsilon) into the generation process. For every generated sample, the target Mean is shifted slightly (e.g., $0.80 plus.minus 0.001$). This ensures that no two "Productive" records are mathematically identical, forcing the classifier to learn the general *concept* of high activity rather than memorizing a specific number.
+
+- *Realistic Class Imbalance:* To mimic a real-world office environment, we did not generate equal amounts of data for each status. Instead, we applied weighted probabilities (e.g., 35% Productive vs. 10% Idle). This forces the model to learn to identify the "majority class" correctly without ignoring the rarer "minority class" (Idle), a common challenge in production systems.
+
+This process yielded a labeled, clustered dataset that statistically mirrors real-world usage patterns.
 
 #figure(
-  image("./data-5k-pairplot_clusters.png", width: 80%),
-  caption: [Feature separation pairplot: This confirms that the Gaussian generation strategy successfully created distinct regions for each status.],
+  image("./three_random_feature_pairplot.png", width: 80%),
+  caption: [Feature separation pairplot: This confirms that the Level-Based generation strategy successfully created distinct regions for each status, while maintaining realistic overlaps.],
 )
 
 #figure(
-  image("./data-5k-pca_projection.png", width: 80%),
-  caption: [2D PCA Projection: Dimensionality reduction illustrates that the synthetic behavioral profiles form separable, cohesive clusters, validating the dataset for classification tasks.],
+  image("./pca_projection.png", width: 80%),
+  caption: [2D PCA Projection (Dimensionality reduction): A clear "Lambda" ($lambda$) topology, validating that the features are correlated in distinct directions (Work vs. Distraction).],
 )
 
-This was made possible and straightforward using Python and the `NumPy` library, creating a realistic distribution of employee work patterns:
-```python
-    statuses = ['productive', 'active', 'fragmented', 'distracted', 'idle']
-    probs =    [0.35,          0.20,     0.20,         0.15,         0.10]
-```
-
-This implies that approximately 35% of employees work productively, while 20% spend time learning new tools or conducting research. Finally, a small percentage spend time away from the computer.
-
-For each of the mentioned working statuses, the following sample/instance is generated:
+The implementation was streamlined by defining "Profiles" in a configuration dictionary, which the generator reads to produce the samples:
 
 ```python
-{
-  focus_switch_rate       :int,
-  overall_idle_percent    :float,
-  main_keystrokes         :float,
-  main_mouse_events       :float,
-  helper_keystrokes       :float,
-  helper_mouse_events     :float,
-  entertain_keystrokes    :float,
-  entertain_mouse_events  :float
+profiles = {
+    'Productive': {
+        'focus_switch':  ['L', 'M'], # Moderate switching
+        'idle_percent':  ['L', 'ML'],
+        'main_keys':     ['M', 'H'], # High Activity
+        'main_mouse':    ['M', 'H'],
+        'entertain_keys': 'L'        # Near Zero tolerance for games
+    },
+    'Fragmented': {
+        'focus_switch':   ['MH', 'H'], # Extremely high switching
+        'idle_percent':    'ML',
+        'main_keys':      ['L', 'M'],
+        'entertain_keys': ['L', 'M']
+    }
+    # and so on ...
 }
 
-
 ```
 
-Therefore, generating records for the "Fragmented" status, for example, can be achieved with the following snippet:
-```python
-if status == 'fragmented':
-    focus_switch_rate    = np.random.normal(35, 10) 
-    overall_idle_percent = np.random.normal(0.02, 0.02)
-    main_keystrokes      = np.random.normal(0.4, 0.2)
-    entertain_keystrokes = np.random.normal(0.2, 0.15)
-
-
-```
-
-Note that for a high `focus_switch_rate` in the "Fragmented" status, we specified a high mean value (`loc=35`) which is the center of the normal distribution, and a moderately high standard deviation (`scale=10`). This allows us to generate ~500k samples of semi-realistic data in just a few seconds.
+This abstraction allows us to generate ~500k samples of semi-realistic data in seconds, with each profile adhering to strict behavioral rules (e.g., a "Productive" user can never have "High" entertainment usage).
 
 #block(stroke: (left: 3pt + gray), radius: 2pt, inset: (left: 1em))[
-Note: It may not be the perfect data type choice for the input volumes (`main_keystrokes`, `main_mouse_events`, etc.). For now, it simulates a percentage over time of input, which is sufficient for a first prototype of the AI workflow in the system.
+Note: This might not be the perfect simulation for input volumes. Real-world features often depend on each other (e.g., typing fast usually means not using the mouse). However, for a first prototype, simulating a percentage of activity over time is sufficient to train the AI workflow.
 ]
 
 \
@@ -179,20 +169,25 @@ Note: It may not be the perfect data type choice for the input volumes (`main_ke
 
 Following the generation of our synthetic Gaussian dataset, we will proceed to the training and workflow design phase.
 
-Given the tabular nature of our telemetry data, where relationships between features like `focus_switch_rate` and `idle_percent` are non-linear but structured, we selected a Gradient Boosting framework.
+Given the tabular nature of our data, where relationships between features like `focus_switch_rate` and `idle_percent` are non-linear but structured, we selected a Gradient Boosting framework.
 
 #h3("Algorithm Selection: XGBoost")
 
 We found that the *XGBoost (eXtreme Gradient Boosting)* classifier is a good choice for our case. This algorithm was chosen over other potential candidates (such as Random Forests or Neural Networks) for three key reasons:
 
-- *Tabular Dominance:* Gradient boosted trees historically outperform deep learning models on structured, low-dimensional tabular data.
-- *Regularization:* XGBoost includes built-in L1 (Lasso) and L2 (Ridge) regularization, which prevents the model from overfitting to the synthetic "perfect" patterns in our training data.
+- *Tabular Dominance:* Gradient boosted trees historically outperform deep learning models on structured, tabular data.
+- *Regularization:* XGBoost includes built-in regularization, which prevents the model from memorizing the synthetic "perfect" patterns in our training data.
 - *Inference Speed:* The optimized C++ backend of XGBoost allows for incredibly fast prediction times (ms), which is a hard requirement for our real-time dashboard.
+
+#h3("Training Methodology")
+
+The dataset was split into training (80%) and validation (20%) sets to ensure that the reported accuracy reflects the model's ability to generalize to unseen data, rather than simply recalling the training examples.
 
 #h3("Tools For An Efficient Real-Time System")
 
-A real-time system requires a reliable environment that delivers speed, load-balancing, and efficient buffering, just to name a few. Given the nature of our system, which might involve tens, hundreds, or maybe thousands of active Agents sitting on each employee's computer sending tons of log records per session, we must rely on a *Streaming* or *Message Queuing* Platform.
+A real-time system requires a reliable environment that delivers speed and load-balancing. Given that our system might involve hundreds of active Agents sending logs simultaneously, we must rely on a *Streaming Platform*.
 
-For that specific purpose, we chose *Apache Kafka*. It is an open-source, distributed event streaming platform that handles real-time data feeds, acting as a high-throughput, fault-tolerant message bus for building data pipelines and streaming applications, allowing systems to publish and subscribe to streams of records (events). Kafka can deal with continuous streams of "events," which are records of anything that happens. This is exactly what we want!
+For that specific purpose, we chose *Apache Kafka*. It acts as a high-throughput message bus that handles real-time data feeds. Kafka can deal with continuous streams of "events" (records of anything that happens), which is exactly what we want. This decoupling ensures that even if the AI Service is under heavy load, the Agents can continue sending data without crashing or losing records.
 
-To simplify the setup and reduce development effort, we will rely heavily on *n8n* to build an integrated workflow and manage the data pipeline. The entire system will run in a _containerized_ environment using *Docker*, ensuring consistency and ease of deployment.
+To simplify the setup, we will rely on *n8n* to manage the data pipeline. The entire system will run in a *containerized* environment using *Docker*, ensuring consistency and ease of deployment.
+
