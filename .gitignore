@@ -3,3 +3,5 @@
 *.pdf
 mu/*
 *ipynb_checkpoints*
+node_modules*
+**.tar

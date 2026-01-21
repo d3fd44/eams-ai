@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-RECORDS_COUNT = 583746 # pretend that this is a magical number
+RECORDS_COUNT = 3 # pretend that this is a magical number
 OUTPUT_FILE = "data.csv"
 EPSILON = 0.05  # How much the mean "wiggles" per sample
 
@@ -99,7 +99,7 @@ def generate_data(n_samples):
     statuses = list(profiles.keys())
     probs = [0.35, 0.20, 0.20, 0.15, 0.10] 
 
-    for _ in range(n_samples):
+    for FAAHH in range(n_samples):
         status = np.random.choice(statuses, p=probs)
         features = profiles[status]
         
@@ -111,7 +111,7 @@ def generate_data(n_samples):
             
             epsilon = np.random.uniform(-EPSILON, EPSILON) * scale
             shifted_mean = base_mean + epsilon
-            
+
             val = np.random.normal(shifted_mean, base_std)
             
             if scale > 1: return int(max(0, val)) # For focus switch (0 to 20)
@@ -142,6 +142,7 @@ def generate_data(n_samples):
     return df
 
 df = generate_data(RECORDS_COUNT)
-df.to_csv(OUTPUT_FILE, index=False)
-print(f"Generated {len(df)} records using Logic Levels.")
-print(df.groupby('status').mean()) # Check if the means match your intuition
+print(df.to_numpy())
+# df.to_csv(OUTPUT_FILE, index=False)
+# print(f"Generated {len(df)} records using Logic Levels.")
+# print(df.groupby('status').mean()) # Check if the means match your intuition

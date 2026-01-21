@@ -1,0 +1,19 @@
+#!/bin/bash
+
+if [[ $# -lt 2 ]]; then
+    echo "Usage: ./send \"message\" \"key\""
+    exit 1
+fi
+
+MSG=$1
+KEY=$2
+
+JSON_PAYLOAD=$(printf '{"message": "%s", "key": "%s"}' "$MSG" "$KEY")
+
+echo "Sending payload: $JSON_PAYLOAD"
+
+curl -X POST http://localhost:3000/log \
+  -H "Content-Type: application/json" \
+  -d "$JSON_PAYLOAD"
+
+printf "\n\n"
